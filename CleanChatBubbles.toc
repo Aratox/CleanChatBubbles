@@ -1,0 +1,10 @@
+## Interface: 11509
+## Title: Clean Chat Bubbles
+## Notes: Entfernt die Sprechblasen-Grafik und zeigt optional nur den Text an. |cff88ff88/ccb|r fuer Optionen.
+## Author: jckoop
+## Version: 1.0
+## SavedVariables: CleanChatBubblesDB
+## OptionalDeps: LibSharedMedia-3.0
+
+CleanChatBubbles.lua
+Options.lua
