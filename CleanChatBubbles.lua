@@ -224,13 +224,22 @@ end
 -- Iteration ueber alle aktuell sichtbaren Bubbles
 ----------------------------------------------------------------------
 
+-- Hinweis: In Instanzen (Raid/Dungeon/BG) sind die Chat-Bubbles fuer
+-- Gruppen-/Raidchat "forbidden" - Blizzard laesst dort keinerlei Zugriff
+-- durch Addons zu. GetAllChatBubbles(false) liefert sie gar nicht erst,
+-- und selbst mit true wuerde jeder Methodenaufruf einen Fehler werfen.
+-- Betrifft alle Chat-Bubble-Addons gleichermassen (ElvUI, Prat, ...).
 local function ForEachBubble(callback)
-	for _, container in pairs(C_ChatBubbles.GetAllChatBubbles()) do
+	local bubbles = C_ChatBubbles.GetAllChatBubbles(false)
+	if not bubbles then return end
+	for _, container in pairs(bubbles) do
 		if container and not container:IsForbidden() then
 			local bubble = container:GetChildren()
 			if not bubble then bubble = container end
 			if bubble and not bubble:IsForbidden() then
-				callback(bubble)
+				-- geschuetzt: falls ein Frame zwischen Pruefung und Zugriff
+				-- doch "forbidden" wird, keinen Lua-Fehler im Raid ausloesen
+				pcall(callback, bubble)
 			end
 		end
 	end

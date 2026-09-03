@@ -58,6 +58,19 @@ des Zeigers als dunkler „Haken" sichtbar.
 
 Einstellungen werden pro Account in `CleanChatBubblesDB` gespeichert.
 
+## Bekannte Einschraenkung: Instanzen
+
+In **Raids, Dungeons und Battlegrounds** werden die Chat-Bubbles fuer
+Gruppen- und Raidchat von Blizzard als *forbidden* markiert. Kein Addon
+(auch nicht ElvUI, Prat oder Plater) darf diese Frames anfassen -
+`C_ChatBubbles.GetAllChatBubbles()` gibt sie nicht heraus, und jeder
+Zugriffsversuch wuerde einen Fehler werfen. Dort bleiben die Bubbles daher
+im Blizzard-Standard.
+
+`/say`- und `/yell`-Bubbles funktionieren ueberall. Gruppen-/Raidchat-Bubbles
+werden **ausserhalb** von Instanzen (offene Welt) mitbearbeitet, sofern in den
+WoW-Einstellungen aktiviert (`/console chatBubblesParty 1`).
+
 ## Wie es funktioniert
 
 Abgeleitet aus den Loesungen von **ElvUI** (`Misc/ChatBubbles.lua`) und **Prat**
