@@ -10,33 +10,31 @@ per Lua, und funktioniert daher auch in geschuetzten Bereichen.
 
 ## Installation
 
-1. Ordner `Tooltips` aus diesem Verzeichnis kopieren nach:
-
-   ```
-   World of Warcraft\_anniversary_\Interface\
-   ```
-
-   Ergebnis:
+1. Dateien aus `Tooltips\` in diesem Verzeichnis kopieren nach:
 
    ```
    World of Warcraft\_anniversary_\Interface\Tooltips\ChatBubble.tga
    World of Warcraft\_anniversary_\Interface\Tooltips\ChatBubbleVertical.tga
    ```
 
-   (Der Ordner `Interface` existiert bereits – nur `Tooltips` hineinlegen.
-   Windows-Dateiendungen einblenden, damit nicht `ChatBubble.tga.tga` entsteht.)
+   (Ordner `Tooltips` ggf. anlegen. Windows-Dateiendungen einblenden, damit
+   nicht `ChatBubble.tga.tga` entsteht.)
 
-2. WoW komplett neu starten.
+2. Liegt dort schon ein Ersatz (`ChatBubble.BLP` / `ChatBubbleVertical.BLP`),
+   diese vorher aus dem Weg raeumen – z. B. umbenennen in `*.BLP.bak`.
+   Sonst gewinnt evtl. die alte Datei.
 
-Die beiden `.tga` sind 64×64 und vollstaendig transparent – die Sprechblase
-wird damit unsichtbar, nur der Text bleibt. Kombiniert mit dem Addon:
+3. WoW komplett neu starten.
+
+Die beiden `.tga` sind 128×256 bzw. 128×32 (wie die Originale) und vollstaendig
+transparent – die Sprechblase wird damit unsichtbar, nur der Text bleibt.
 Schriftart/-groesse/Kontur/Schatten kommen weiterhin ueber `/ccb` (wirkt via
 `ChatBubbleFont` auch im Raid).
 
 ## Rueckgaengig
 
-`Tooltips\ChatBubble.tga` und `ChatBubbleVertical.tga` wieder loeschen,
-WoW neu starten.
+`Tooltips\ChatBubble.tga` + `ChatBubbleVertical.tga` loeschen, ein evtl.
+`*.BLP.bak` wieder zurueck-benennen, WoW neu starten.
 
 ## Alternative
 
