@@ -58,20 +58,24 @@ des Zeigers als dunkler „Haken" sichtbar.
 
 Einstellungen werden pro Account in `CleanChatBubblesDB` gespeichert.
 
-## Instanzen (Raid / Dungeon / BG) und Gruppenchat
+## Instanzen (Raid / Dungeon / BG)
 
-Auf dem Vanilla-Anniversary-Client sind die Chat-Bubbles auch in Instanzen
-anfassbar - das Ausblenden der Grafik funktioniert dort ebenso (ElvUI kann es
-dort auch). Damit Gruppen-/Raidchat-Bubbles erfasst werden, blendet das Addon
-die Grafik **bedingungslos** aus, ohne vorher den Text-FontString zu suchen.
+| Was | offene Welt | Instanz |
+|-----|:-:|:-:|
+| Grafik ausblenden **per Lua** (`textonly` / `notail`) | ✅ | ❌ Frames gesperrt |
+| Grafik ausblenden **per Textur-Ersatz** (`texture-replacement/`) | ✅ | ✅ |
+| Schriftart / Groesse / Kontur / Schatten (`ChatBubbleFont`) | ✅ | ✅ |
 
-Schrift-Aenderungen laufen ohnehin ueber das **globale Fontobjekt
-`ChatBubbleFont`** (wie in ElvUI, `Game/Shared/General/Fonts.lua`) und wirken
-sofort auf alle Bubbles.
+Lua-Zugriff auf die Bubble-Frames ist in Instanzen gesperrt – das betrifft
+**jedes** Addon (ElvUIs eigenes Wiki sagt das ausdruecklich). Um die Grafik
+auch dort loszuwerden, die mitgelieferten transparenten Texturen installieren:
+siehe [`texture-replacement/INSTALL.md`](texture-replacement/INSTALL.md).
+Die Schrift-Einstellungen (`/ccb`) wirken ueber das globale Fontobjekt
+`ChatBubbleFont` und greifen ohnehin ueberall, auch im Raid.
 
 Gruppen-/Raidchat-Bubbles muessen in den WoW-Einstellungen aktiviert sein
-(`/console chatBubblesParty 1`). Falls im Raid trotzdem etwas nicht greift:
-`/ccb debug` gibt aus, was `C_ChatBubbles.GetAllChatBubbles()` gerade liefert.
+(`/console chatBubblesParty 1`). `/ccb debug` zeigt, was
+`C_ChatBubbles.GetAllChatBubbles()` gerade liefert.
 
 ## Wie es funktioniert
 

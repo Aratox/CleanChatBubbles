@@ -26,7 +26,9 @@
 	    ueber das globale Fontobjekt _G.ChatBubbleFont (ApplyGlobalFont) - gleicher
 	    Kniff wie in ElvUI, wirkt sofort auf alle Bubbles.
 	  * Grafik ausblenden geschieht bedingungslos (kein vorheriges Suchen des
-	    FontStrings), damit auch Gruppen-/Raidchat-Bubbles erfasst werden.
+	    FontStrings). Wirkt nur AUSSERHALB von Instanzen - in Raids/Dungeons
+	    sind die Bubble-Frames fuer Addons gesperrt (ElvUI/Prat genauso).
+	    Fuer Instanzen: transparente Texturen, siehe texture-replacement/.
 
 	Alles ist reversibel (EnableDrawLayer / SetAlpha(1) / ChatBubbleFont zurueck),
 	es werden keine Texturen dauerhaft zerstoert.
