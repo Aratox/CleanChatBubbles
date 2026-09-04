@@ -58,24 +58,20 @@ des Zeigers als dunkler „Haken" sichtbar.
 
 Einstellungen werden pro Account in `CleanChatBubblesDB` gespeichert.
 
-## Instanzen (Raid / Dungeon / BG / Arena)
+## Instanzen (Raid / Dungeon / BG) und Gruppenchat
 
-Dort markiert Blizzard **alle** Chat-Bubbles als *forbidden* - egal welcher
-Kanal. Kein Addon darf die einzelnen Bubble-Frames anfassen.
+Auf dem Vanilla-Anniversary-Client sind die Chat-Bubbles auch in Instanzen
+anfassbar - das Ausblenden der Grafik funktioniert dort ebenso (ElvUI kann es
+dort auch). Damit Gruppen-/Raidchat-Bubbles erfasst werden, blendet das Addon
+die Grafik **bedingungslos** aus, ohne vorher den Text-FontString zu suchen.
 
-| Was | in Instanzen |
-|-----|--------------|
-| Sprechblasen-Bild entfernen (`textonly` / `notail`) | ❌ geht nicht (bei ElvUI/Prat auch nicht) |
-| Schriftart, Groesse, Kontur, Schatten | ✅ **wirkt trotzdem** |
-
-Der Trick fuer die Schrift: nicht jede Bubble einzeln stylen, sondern das
-**globale Fontobjekt `ChatBubbleFont`** aendern, das alle Bubbles fuer ihren
-Text verwenden. Das ist derselbe Ansatz wie in ElvUI
-(`Game/Shared/General/Fonts.lua`). Ausserhalb von Instanzen funktioniert
-zusaetzlich das Ausblenden der Grafik.
+Schrift-Aenderungen laufen ohnehin ueber das **globale Fontobjekt
+`ChatBubbleFont`** (wie in ElvUI, `Game/Shared/General/Fonts.lua`) und wirken
+sofort auf alle Bubbles.
 
 Gruppen-/Raidchat-Bubbles muessen in den WoW-Einstellungen aktiviert sein
-(`/console chatBubblesParty 1`).
+(`/console chatBubblesParty 1`). Falls im Raid trotzdem etwas nicht greift:
+`/ccb debug` gibt aus, was `C_ChatBubbles.GetAllChatBubbles()` gerade liefert.
 
 ## Wie es funktioniert
 
@@ -84,8 +80,8 @@ Abgeleitet aus den Loesungen von **ElvUI** (`Misc/ChatBubbles.lua` +
 
 1. **Schrift** (Art/Groesse/Kontur/Schatten): einmalig auf `_G.ChatBubbleFont`
    angewandt. Weil jede Bubble ihren Text ueber dieses eine Fontobjekt rendert,
-   greift die Aenderung sofort und ueberall - auch bei forbidden Bubbles.
-   Groesse ist ein Offset zum gemerkten Blizzard-Ausgangswert (kein Aufaddieren).
+   greift die Aenderung sofort und ueberall. Groesse ist ein Offset zum
+   gemerkten Blizzard-Ausgangswert (kein Aufaddieren).
 2. **Grafik ausblenden**: Es gibt kein Event „Bubble erschienen", daher
    gedrosseltes `OnUpdate` (10×/Sek.) ueber `C_ChatBubbles.GetAllChatBubbles()`.
    Das zurueckgegebene Objekt ist ein Container; die eigentliche Bubble ist

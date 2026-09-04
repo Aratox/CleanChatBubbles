@@ -23,11 +23,10 @@
 	  * "Nur Zeiger weg" nutzt bubble.Tail:SetAlpha(0) und laesst den Rest.
 
 	  * Schriftart/-groesse/Kontur/Schatten laufen NICHT pro Bubble, sondern
-	    ueber das globale Fontobjekt _G.ChatBubbleFont (ApplyGlobalFont). Dadurch
-	    wirken sie ueberall - auch bei den in Instanzen "forbidden" Bubbles,
-	    deren Frame man nicht anfassen darf. Gleicher Kniff wie in ElvUI.
-	    Das Ausblenden der Grafik selbst bleibt pro Frame und damit ausserhalb
-	    von Instanzen.
+	    ueber das globale Fontobjekt _G.ChatBubbleFont (ApplyGlobalFont) - gleicher
+	    Kniff wie in ElvUI, wirkt sofort auf alle Bubbles.
+	  * Grafik ausblenden geschieht bedingungslos (kein vorheriges Suchen des
+	    FontStrings), damit auch Gruppen-/Raidchat-Bubbles erfasst werden.
 
 	Alles ist reversibel (EnableDrawLayer / SetAlpha(1) / ChatBubbleFont zurueck),
 	es werden keine Texturen dauerhaft zerstoert.
@@ -176,16 +175,16 @@ end
 ----------------------------------------------------------------------
 
 local function ProcessBubble(bubble)
-	local fs = GetBubbleText(bubble)
-	if not fs then return end
-
+	-- WICHTIG: die Grafik wird BEDINGUNGSLOS ausgeblendet (wie in ElvUI). Nicht
+	-- erst den Text-FontString suchen und bei Nichtfinden abbrechen - Gruppen-/
+	-- Raidchat-Bubbles koennen den Text spaeter/woanders haben.
 	if DB.mode == "textonly" then
 		if not bubble.__ccbStripped then
 			-- Der Grossteil der Bubble-Grafik liegt auf "BORDER"...
-			bubble:DisableDrawLayer("BORDER")
+			if bubble.DisableDrawLayer then bubble:DisableDrawLayer("BORDER") end
 			-- ...der Zeiger ("Tail") und je nach Client einzelne Reste aber
-			-- nicht. Deshalb zusaetzlich JEDE Textur der Bubble unsichtbar
-			-- machen (Alpha 0, damit reversibel) - FontStrings bleiben.
+			-- nicht. Deshalb zusaetzlich JEDE Textur unsichtbar machen
+			-- (Alpha 0, damit reversibel) - FontStrings bleiben.
 			for i = 1, bubble:GetNumRegions() do
 				local region = select(i, bubble:GetRegions())
 				if region and region.GetObjectType and region:GetObjectType() == "Texture" then
@@ -200,13 +199,14 @@ local function ProcessBubble(bubble)
 		-- da Blizzard das Frame recycelt und den Alpha zuruecksetzen kann.
 		if bubble.Tail then bubble.Tail:SetAlpha(0) end
 		if bubble.__ccbStripped then
-			bubble:EnableDrawLayer("BORDER")
+			if bubble.EnableDrawLayer then bubble:EnableDrawLayer("BORDER") end
 			bubble.__ccbStripped = nil
 		end
 	end
 
 	-- Schrift laeuft global ueber ChatBubbleFont (siehe ApplyGlobalFont).
-	UpdateBackground(bubble, fs)
+	local fs = GetBubbleText(bubble)
+	if fs then UpdateBackground(bubble, fs) end
 	bubble.__ccbTouched = true
 end
 
@@ -231,23 +231,18 @@ end
 -- Iteration ueber alle aktuell sichtbaren Bubbles
 ----------------------------------------------------------------------
 
--- Hinweis: In Instanzen (Raid/Dungeon/BG/Arena) sind ALLE Chat-Bubbles
--- "forbidden" - Blizzard laesst dort keinen Frame-Zugriff durch Addons zu.
--- GetAllChatBubbles(false) liefert sie gar nicht erst. Das GRAFIK-Ausblenden
--- geht dort also nicht (bei ElvUI/Prat genauso). Die reinen Schrift-Aenderungen
--- laufen dagegen ueber ApplyGlobalFont und wirken trotzdem.
+-- Exakt wie ElvUI: ueber GetAllChatBubbles() iterieren, die eigentliche Bubble
+-- ist das erste Child des Containers, und nur der IsForbidden()-Check auf diesem
+-- Child entscheidet. (Falls Blizzard in Instanzen doch mal sperrt, faengt der
+-- pcall den Fehler ab, statt Fehler-Spam im Raid zu erzeugen.)
 local function ForEachBubble(callback)
-	local bubbles = C_ChatBubbles.GetAllChatBubbles(false)
+	local bubbles = C_ChatBubbles.GetAllChatBubbles()
 	if not bubbles then return end
 	for _, container in pairs(bubbles) do
-		if container and not container:IsForbidden() then
-			local bubble = container:GetChildren()
-			if not bubble then bubble = container end
-			if bubble and not bubble:IsForbidden() then
-				-- geschuetzt: falls ein Frame zwischen Pruefung und Zugriff
-				-- doch "forbidden" wird, keinen Lua-Fehler im Raid ausloesen
-				pcall(callback, bubble)
-			end
+		local bubble = container and container:GetChildren()
+		if not bubble then bubble = container end
+		if bubble and not bubble:IsForbidden() then
+			pcall(callback, bubble)
 		end
 	end
 end
@@ -335,6 +330,32 @@ local function ListFonts()
 	end
 end
 
+local function DebugDump()
+	local all = C_ChatBubbles.GetAllChatBubbles()
+	local allF = C_ChatBubbles.GetAllChatBubbles(true)
+	local inInstance, instType = IsInInstance()
+	pr(("Instanz=%s (%s)  |  Bubbles: %d   inkl. forbidden: %d")
+		:format(tostring(inInstance), tostring(instType),
+			all and #all or -1, allF and #allF or -1))
+	local i = 0
+	for _, container in pairs(all or {}) do
+		i = i + 1
+		local child = container and container:GetChildren()
+		local b = child or container
+		local fs = b and GetBubbleText(b)
+		print(("  #%d forbidden=%s child=%s regions=%s text=%s stripped=%s"):format(
+			i,
+			tostring(b and b:IsForbidden()),
+			tostring(child ~= nil),
+			tostring(b and b.GetNumRegions and b:GetNumRegions()),
+			fs and ('"' .. tostring(fs:GetText()) .. '"') or "nil",
+			tostring(b and b.__ccbStripped)))
+	end
+	if i == 0 then
+		pr("gerade keine Bubbles sichtbar - jemanden reden lassen und SOFORT nochmal /ccb debug")
+	end
+end
+
 local function Help()
 	pr("Optionsmenue: |cffffd100/ccb|r (ohne Argument) oder ESC > Interface > AddOns > Clean Chat Bubbles")
 	pr("Befehle:")
@@ -347,6 +368,7 @@ local function Help()
 	print("  /ccb shadow     - Textschatten an/aus")
 	print("  /ccb bg <0-1>   - dunkler Lese-Hintergrund hinter dem Text (nur textonly)")
 	print("  /ccb status     - aktuelle Einstellungen anzeigen")
+	print("  /ccb debug      - Diagnose der aktuell sichtbaren Bubbles")
 end
 
 SLASH_CLEANCHATBUBBLES1 = "/ccb"
@@ -409,6 +431,9 @@ SlashCmdList.CLEANCHATBUBBLES = function(msg)
 		DB.bgAlpha = n
 	elseif cmd == "status" then
 		PrintStatus()
+		return
+	elseif cmd == "debug" then
+		DebugDump()
 		return
 	else
 		pr("Unbekannter Befehl.")
