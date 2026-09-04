@@ -336,6 +336,8 @@ local function DebugDump()
 	local all = C_ChatBubbles.GetAllChatBubbles()
 	local allF = C_ChatBubbles.GetAllChatBubbles(true)
 	local inInstance, instType = IsInInstance()
+	pr(("CVar chatBubbles=%s  chatBubblesParty=%s")
+		:format(tostring(GetCVar("chatBubbles")), tostring(GetCVar("chatBubblesParty"))))
 	pr(("Instanz=%s (%s)  |  Bubbles: %d   inkl. forbidden: %d")
 		:format(tostring(inInstance), tostring(instType),
 			all and #all or -1, allF and #allF or -1))
