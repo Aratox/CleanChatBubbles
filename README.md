@@ -58,37 +58,45 @@ des Zeigers als dunkler „Haken" sichtbar.
 
 Einstellungen werden pro Account in `CleanChatBubblesDB` gespeichert.
 
-## Bekannte Einschraenkung: Instanzen
+## Instanzen (Raid / Dungeon / BG / Arena)
 
-In jeder **Instanz** (Raid, Dungeon, Battleground, Arena) markiert Blizzard den
-kompletten Chat-Bubble-Pool als *forbidden* - und zwar **alle** Bubbles, egal
-ob `/say`, `/yell`, Gruppen- oder Raidchat. Der Status haengt am Aufenthaltsort,
-nicht am Chat-Kanal. Kein Addon (auch nicht ElvUI, Prat oder Plater) darf diese
-Frames anfassen: `C_ChatBubbles.GetAllChatBubbles()` gibt sie nicht heraus, und
-jeder Zugriffsversuch wuerde einen Fehler werfen. In Instanzen bleiben Bubbles
-daher im Blizzard-Standard.
+Dort markiert Blizzard **alle** Chat-Bubbles als *forbidden* - egal welcher
+Kanal. Kein Addon darf die einzelnen Bubble-Frames anfassen.
 
-**Ausserhalb** von Instanzen funktioniert alles - auch wenn man in einer
-Raidgruppe ist (z. B. Weltboss). Gruppen-/Raidchat-Bubbles muessen dafuer in
-den WoW-Einstellungen aktiviert sein (`/console chatBubblesParty 1`).
+| Was | in Instanzen |
+|-----|--------------|
+| Sprechblasen-Bild entfernen (`textonly` / `notail`) | ❌ geht nicht (bei ElvUI/Prat auch nicht) |
+| Schriftart, Groesse, Kontur, Schatten | ✅ **wirkt trotzdem** |
+
+Der Trick fuer die Schrift: nicht jede Bubble einzeln stylen, sondern das
+**globale Fontobjekt `ChatBubbleFont`** aendern, das alle Bubbles fuer ihren
+Text verwenden. Das ist derselbe Ansatz wie in ElvUI
+(`Game/Shared/General/Fonts.lua`). Ausserhalb von Instanzen funktioniert
+zusaetzlich das Ausblenden der Grafik.
+
+Gruppen-/Raidchat-Bubbles muessen in den WoW-Einstellungen aktiviert sein
+(`/console chatBubblesParty 1`).
 
 ## Wie es funktioniert
 
-Abgeleitet aus den Loesungen von **ElvUI** (`Misc/ChatBubbles.lua`) und **Prat**
-(`modules/Bubbles.lua`):
+Abgeleitet aus den Loesungen von **ElvUI** (`Misc/ChatBubbles.lua` +
+`General/Fonts.lua`) und **Prat** (`modules/Bubbles.lua`):
 
-1. Es gibt kein Event „Chat-Bubble erschienen". Deshalb wird per gedrosseltem
-   `OnUpdate` (10×/Sek.) ueber `C_ChatBubbles.GetAllChatBubbles()` iteriert.
-2. Im Classic-Client ist das zurueckgegebene Objekt ein Container-Frame; die
-   eigentliche Bubble ist dessen erstes Child (`container:GetChildren()`).
-3. Dieses Child zeichnet die gesamte Bubble-Grafik (Ecken, Kanten, Center, Tail)
-   auf dem Draw-Layer **`BORDER`**. Ein einziges `bubble:DisableDrawLayer("BORDER")`
-   entfernt die komplette Sprechblase; der Text-FontString (`bubble.String`) liegt
-   auf einem anderen Layer und bleibt sichtbar.
-4. „Nur Zeiger weg" setzt stattdessen `bubble.Tail:SetAlpha(0)`.
+1. **Schrift** (Art/Groesse/Kontur/Schatten): einmalig auf `_G.ChatBubbleFont`
+   angewandt. Weil jede Bubble ihren Text ueber dieses eine Fontobjekt rendert,
+   greift die Aenderung sofort und ueberall - auch bei forbidden Bubbles.
+   Groesse ist ein Offset zum gemerkten Blizzard-Ausgangswert (kein Aufaddieren).
+2. **Grafik ausblenden**: Es gibt kein Event „Bubble erschienen", daher
+   gedrosseltes `OnUpdate` (10×/Sek.) ueber `C_ChatBubbles.GetAllChatBubbles()`.
+   Das zurueckgegebene Objekt ist ein Container; die eigentliche Bubble ist
+   dessen erstes Child (`container:GetChildren()`).
+3. Dieses Child zeichnet die Bubble-Grafik (Ecken, Kanten, Center) auf dem
+   Draw-Layer **`BORDER`** -> `bubble:DisableDrawLayer("BORDER")`. Zusaetzlich
+   wird jede Textur auf Alpha 0 gesetzt (Zeiger/Reste). Der Text bleibt.
+4. „Nur Zeiger weg" setzt nur `bubble.Tail:SetAlpha(0)`.
 
-Alle Aenderungen sind reversibel (`EnableDrawLayer` / `SetAlpha(1)`), es werden
-keine Texturen dauerhaft ueberschrieben.
+Alles reversibel: `EnableDrawLayer` / `SetAlpha(1)` und `ChatBubbleFont` zurueck
+auf die gemerkten Ausgangswerte.
 
 ## Hinweis zur Client-Version
 

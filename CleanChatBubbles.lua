@@ -21,10 +21,16 @@
 	    im Modus "textonly" zusaetzlich jede Textur der Bubble auf Alpha 0
 	    gesetzt. Der Text (FontString "bubble.String") bleibt stehen.
 	  * "Nur Zeiger weg" nutzt bubble.Tail:SetAlpha(0) und laesst den Rest.
-	  * Alles reversibel (EnableDrawLayer / SetAlpha(1)).
 
-	Alles ist reversibel (EnableDrawLayer / SetAlpha(1)), es werden keine
-	Texturen dauerhaft zerstoert.
+	  * Schriftart/-groesse/Kontur/Schatten laufen NICHT pro Bubble, sondern
+	    ueber das globale Fontobjekt _G.ChatBubbleFont (ApplyGlobalFont). Dadurch
+	    wirken sie ueberall - auch bei den in Instanzen "forbidden" Bubbles,
+	    deren Frame man nicht anfassen darf. Gleicher Kniff wie in ElvUI.
+	    Das Ausblenden der Grafik selbst bleibt pro Frame und damit ausserhalb
+	    von Instanzen.
+
+	Alles ist reversibel (EnableDrawLayer / SetAlpha(1) / ChatBubbleFont zurueck),
+	es werden keine Texturen dauerhaft zerstoert.
 ----------------------------------------------------------------------------]]
 
 local _, ns = ...
@@ -44,17 +50,26 @@ ns.DEFAULTS = DEFAULTS
 
 local THROTTLE = 0.1
 local MIN_FONT_SIZE = 6
-local BUBBLE_FONT = _G.ChatBubbleFont -- Blizzard-Standard-Fontobjekt zum Zuruecksetzen
 
--- Basis-Schrift der Chat-Bubbles (Pfad + Groesse). Dient als fixer Nullpunkt,
--- damit fontDelta nicht bei jedem Durchlauf auf sich selbst aufaddiert.
-local function BubbleFontBase()
+-- Blizzard-Ausgangswerte des Bubble-Fonts EINMALIG merken (bevor wir daran drehen).
+-- Dient als fixer Nullpunkt fuer fontDelta und zum sauberen Zuruecksetzen.
+local ORIG_FONT, ORIG_SIZE, ORIG_FLAGS
+local ORIG_SHADOW_X, ORIG_SHADOW_Y
+do
 	local f = _G.ChatBubbleFont
 	if f and f.GetFont then
-		local path, size = f:GetFont()
-		if path and size then return path, size end
+		ORIG_FONT, ORIG_SIZE, ORIG_FLAGS = f:GetFont()
+		if f.GetShadowOffset then ORIG_SHADOW_X, ORIG_SHADOW_Y = f:GetShadowOffset() end
 	end
-	return STANDARD_TEXT_FONT, 13
+	ORIG_FONT = ORIG_FONT or STANDARD_TEXT_FONT
+	ORIG_SIZE = ORIG_SIZE or 13
+	ORIG_FLAGS = ORIG_FLAGS or ""
+	ORIG_SHADOW_X = ORIG_SHADOW_X or 0
+	ORIG_SHADOW_Y = ORIG_SHADOW_Y or 0
+end
+
+local function BubbleFontBase()
+	return ORIG_FONT, ORIG_SIZE
 end
 ns.BubbleFontBase = BubbleFontBase
 
@@ -104,33 +119,40 @@ local function GetBubbleText(bubble)
 	end
 end
 
--- Schrift auf den FontString anwenden (nur bei geaenderten Werten sinnvoll aufrufen)
-local function StyleText(fs)
-	local _, baseSize = BubbleFontBase()
-	local path = ResolveFontPath()
+-- Schrift/Groesse/Kontur/Schatten auf das GLOBALE Fontobjekt "ChatBubbleFont"
+-- anwenden. Alle Chat-Bubbles rendern ihren Text darueber - dadurch wirkt die
+-- Aenderung ueberall, auch bei den in Instanzen "forbidden" Bubbles (deren
+-- Frame man nicht anfassen darf, wohl aber dieses gemeinsame Fontobjekt).
+-- Das ist derselbe Kniff wie in ElvUI (Fonts.lua: E:SetFont(ChatBubbleFont,...)).
+local function ApplyGlobalFont()
+	local f = _G.ChatBubbleFont
+	if not f or not f.SetFont then return end
 
-	local newSize = baseSize + (DB.fontDelta or 0)
-	if newSize < MIN_FONT_SIZE then newSize = MIN_FONT_SIZE end
-	local newFlags = (DB.fontOutline and DB.fontOutline ~= "NONE") and DB.fontOutline or ""
-	if fs:SetFont(path, newSize, newFlags) == false then
-		-- ungueltiger Pfad -> auf Bubble-Standardschrift zurueck
-		fs:SetFont((BubbleFontBase()), newSize, newFlags)
+	-- Kein DB oder Modus "default": Blizzard-Ausgangszustand wiederherstellen.
+	if not DB or DB.mode == "default" then
+		f:SetFont(ORIG_FONT, ORIG_SIZE, ORIG_FLAGS)
+		if f.SetShadowOffset then f:SetShadowOffset(ORIG_SHADOW_X, ORIG_SHADOW_Y) end
+		return
 	end
 
-	if DB.shadow then
-		fs:SetShadowColor(0, 0, 0, 1)
-		fs:SetShadowOffset(1, -1)
-	else
-		fs:SetShadowOffset(0, 0)
+	local size = ORIG_SIZE + (DB.fontDelta or 0)
+	if size < MIN_FONT_SIZE then size = MIN_FONT_SIZE end
+	local flags = (DB.fontOutline and DB.fontOutline ~= "NONE") and DB.fontOutline or ""
+
+	if f:SetFont(ResolveFontPath(), size, flags) == false then
+		f:SetFont(ORIG_FONT, size, flags) -- ungueltiger Pfad -> wenigstens Groesse/Kontur
 	end
 
-	-- Nach einer Groessenaenderung die Breite an den tatsaechlich gerenderten
-	-- Text anpassen, damit nichts abgeschnitten wird / umbricht.
-	local wrapped = fs:GetWrappedWidth()
-	if wrapped and wrapped > 0 then
-		fs:SetWidth(wrapped + 2)
+	if f.SetShadowColor and f.SetShadowOffset then
+		if DB.shadow then
+			f:SetShadowColor(0, 0, 0, 1)
+			f:SetShadowOffset(1, -1)
+		else
+			f:SetShadowOffset(0, 0)
+		end
 	end
 end
+ns.ApplyGlobalFont = ApplyGlobalFont
 
 -- Optionaler Lese-Hintergrund hinter dem Text (nur "textonly", bgAlpha > 0)
 local function UpdateBackground(bubble, fs)
@@ -183,13 +205,7 @@ local function ProcessBubble(bubble)
 		end
 	end
 
-	-- Schrift nur neu anwenden, wenn sich der Text geaendert hat (spart Arbeit).
-	local text = fs:GetText()
-	if text and text ~= bubble.__ccbText then
-		StyleText(fs)
-		bubble.__ccbText = text
-	end
-
+	-- Schrift laeuft global ueber ChatBubbleFont (siehe ApplyGlobalFont).
 	UpdateBackground(bubble, fs)
 	bubble.__ccbTouched = true
 end
@@ -207,16 +223,7 @@ local function RestoreBubble(bubble)
 	end
 	if bubble.Tail then bubble.Tail:SetAlpha(1) end
 	if bubble.__ccbBG then bubble.__ccbBG:Hide() end
-
-	local fs = GetBubbleText(bubble)
-	if fs then
-		if BUBBLE_FONT then
-			fs:SetFontObject(BUBBLE_FONT)
-		end
-		fs:SetShadowOffset(0, 0)
-		fs:SetWidth(0) -- 0 = automatische Breite wie von Blizzard vorgesehen
-	end
-	bubble.__ccbText = nil
+	-- Schrift wird global ueber ChatBubbleFont zurueckgesetzt (ApplyGlobalFont).
 	bubble.__ccbTouched = nil
 end
 
@@ -224,11 +231,11 @@ end
 -- Iteration ueber alle aktuell sichtbaren Bubbles
 ----------------------------------------------------------------------
 
--- Hinweis: In Instanzen (Raid/Dungeon/BG) sind die Chat-Bubbles fuer
--- Gruppen-/Raidchat "forbidden" - Blizzard laesst dort keinerlei Zugriff
--- durch Addons zu. GetAllChatBubbles(false) liefert sie gar nicht erst,
--- und selbst mit true wuerde jeder Methodenaufruf einen Fehler werfen.
--- Betrifft alle Chat-Bubble-Addons gleichermassen (ElvUI, Prat, ...).
+-- Hinweis: In Instanzen (Raid/Dungeon/BG/Arena) sind ALLE Chat-Bubbles
+-- "forbidden" - Blizzard laesst dort keinen Frame-Zugriff durch Addons zu.
+-- GetAllChatBubbles(false) liefert sie gar nicht erst. Das GRAFIK-Ausblenden
+-- geht dort also nicht (bei ElvUI/Prat genauso). Die reinen Schrift-Aenderungen
+-- laufen dagegen ueber ApplyGlobalFont und wirken trotzdem.
 local function ForEachBubble(callback)
 	local bubbles = C_ChatBubbles.GetAllChatBubbles(false)
 	if not bubbles then return end
@@ -284,6 +291,7 @@ end
 
 -- Von der Optionsoberflaeche (Options.lua) aufgerufen, wenn sich ein Wert aendert.
 function ns.Apply()
+	ApplyGlobalFont()
 	ApplyNow()
 	UpdateEnabled()
 end
@@ -408,6 +416,7 @@ SlashCmdList.CLEANCHATBUBBLES = function(msg)
 		return
 	end
 
+	ApplyGlobalFont()
 	ApplyNow()
 	UpdateEnabled()
 	PrintStatus()
@@ -419,15 +428,21 @@ end
 
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("PLAYER_LOGIN")
-loader:SetScript("OnEvent", function()
+loader:RegisterEvent("PLAYER_ENTERING_WORLD")
+loader:SetScript("OnEvent", function(_, event)
+	if event == "PLAYER_ENTERING_WORLD" then
+		-- Sicherheitsnetz: ChatBubbleFont nach Zonenwechsel erneut setzen
+		if DB then ApplyGlobalFont() end
+		return
+	end
+
 	CleanChatBubblesDB = CleanChatBubblesDB or {}
 	DB = CleanChatBubblesDB
 
 	-- Migration: fruehere absolute Schriftgroesse -> Offset zum Standard
 	if DB.fontSize ~= nil then
 		if DB.fontDelta == nil and DB.fontSize > 0 then
-			local _, base = BubbleFontBase()
-			DB.fontDelta = DB.fontSize - base
+			DB.fontDelta = DB.fontSize - ORIG_SIZE
 		end
 		DB.fontSize = nil
 	end
@@ -439,6 +454,7 @@ loader:SetScript("OnEvent", function()
 
 	if ns.BuildOptions then ns.BuildOptions() end
 
+	ApplyGlobalFont()
 	UpdateEnabled()
 	pr(("geladen. Modus |cffffd100%s|r - |cffffd100/ccb|r oeffnet das Optionsmenue."):format(DB.mode))
 end)
